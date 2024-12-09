@@ -1,0 +1,3 @@
+[submodule "aoc_util"]
+	path = aoc_util
+	url = git@github.com:wookiepeter/aoc_util.git
