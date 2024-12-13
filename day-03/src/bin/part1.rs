@@ -18,7 +18,7 @@ fn process(input: &str) -> String {
             let mul_str = mul_str.trim_end_matches(")");
             let (l, r) = mul_str.split_once(',').unwrap();
 
-            (l.parse::<u32>().unwrap() * r.parse::<u32>().unwrap())
+            l.parse::<u32>().unwrap() * r.parse::<u32>().unwrap()
         })
         .sum();
 

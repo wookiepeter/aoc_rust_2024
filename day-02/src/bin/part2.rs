@@ -1,5 +1,3 @@
-use std::os::windows;
-
 use day_02::check_report;
 
 fn main() {

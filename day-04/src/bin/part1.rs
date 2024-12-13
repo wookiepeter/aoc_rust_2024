@@ -1,5 +1,3 @@
-use std::ops::Sub;
-
 use aoc_util::grid::*;
 
 fn main() {
