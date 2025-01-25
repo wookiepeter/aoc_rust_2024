@@ -1,0 +1,5 @@
+/target
+
+# ignore any vscode project files
+.vscode/*
+.history/
