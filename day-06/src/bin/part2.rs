@@ -1,22 +1,16 @@
 use std::{collections::HashSet, iter};
 
-use aoc_util::{direction::Direction, grid::Grid, grid_display::GridDisplay};
+use aoc_util::{direction::Direction, grid::Grid};
 
-/*
-INCOMPLETE / WRONG SOLUTION
-
-After 2 tries i decided to stop working on this, i got pretty close,
-but the issues are piling up again and at this point i should either rewrite again or just leave it be
-So i'll leave it be!
-
-*/
-
-// After looking at other solutions -> this is still way to overengineered
+// After looking at other solutions -> this is was way too overengineered and had a logic flaw
+// i found the flaw and simplified a bit, but more could be done
 // A lot of easier (and still fast) solutions just let the guard walk around to test loops and use
 // a hashmap for duplicate moves
 // see this example here: https://github.com/jstnd/programming-puzzles/blob/master/rust/src/aoc/year2024/day06.rs
 // Rust is a very fast language, sometimes the easiest thing to do is just to use the primitive
 // implementation which should have avoided a shitton of issues here
+//
+// BUT IT WORKS, and it's actually not that slow
 fn main() {
     let input = include_str!("./input.txt");
     let output = process(input);
@@ -30,9 +24,9 @@ fn process(input: &str) -> String {
     let obstruction_map = ObstructionMap::from_grid(&grid);
 
     let mut current_ray = Some((start_position, Direction::Up));
-    let mut looping_obstacles: HashSet<(usize, usize)> = HashSet::new();
+    let mut visited: HashSet<(usize, usize)> = HashSet::new();
 
-    // go from turn point to turn point until you leave the map
+    // Initial loop that collects the default path, i.e. all the places where we could potentially place obstacles
     while let Some((turn_point, dir)) = current_ray {
         current_ray = match obstruction_map.find_turn_point(&turn_point, &dir) {
             // turns in place -> no possible obstacles
@@ -48,9 +42,8 @@ fn process(input: &str) -> String {
                     .expect("Line should have an endpoint");
                 ObstructionMap::give_line_points(line_start, next_turn_point, dir)
                     .iter()
-                    .filter(|position| obstruction_map.is_loop(**position, dir))
                     .for_each(|position| {
-                        looping_obstacles.insert(*position);
+                        visited.insert(*position);
                     });
                 Some((next_turn_point, dir.cw()))
             }
@@ -63,20 +56,28 @@ fn process(input: &str) -> String {
                 obstruction_map
                     .give_ray_points(line_start, dir)
                     .iter()
-                    .filter(|position| obstruction_map.is_loop(**position, dir))
                     .for_each(|position| {
-                        looping_obstacles.insert(*position);
+                        visited.insert(*position);
                     });
+
                 None
             }
         }
     }
 
-    println!("{:?}", looping_obstacles);
-    let mut display = GridDisplay::from_grid(&grid);
-    display.apply_char_layer('O', looping_obstacles.clone());
-    println!("{}", display.to_string());
-    looping_obstacles.len().to_string()
+    let mut obstacle_counter: usize = 0;
+
+    // put an obstacle on each position of the path and see if the new map loops
+    for obstacle in visited {
+        let mut modified_grid = grid.clone();
+        modified_grid.array[obstacle.1][obstacle.0] = '#';
+        let obstruction_map = ObstructionMap::from_grid(&modified_grid);
+        if obstruction_map.is_loop(start_position, Direction::Up) {
+            obstacle_counter += 1;
+        }
+    }
+
+    obstacle_counter.to_string()
 }
 
 struct ObstructionMap<'a> {
@@ -126,54 +127,18 @@ impl<'a> ObstructionMap<'a> {
         }
     }
 
-    pub fn is_loop(&self, obstacle: (usize, usize), initial_direction: Direction) -> bool {
-        println!("Obstacle: {:?}", obstacle);
-        let (initial_turn_point, _) = self
-            .grid
-            .get_direct_neighbor(obstacle, initial_direction.opposite())
-            .expect("Invalid obstacle provided to is_loop -> previous field is also blocked");
+    pub fn is_loop(&self, start_pos: (usize, usize), initial_direction: Direction) -> bool {
         // first ray sent out needs to be compared
-        let initial_ray = Some((initial_turn_point, initial_direction.cw()));
+        let initial_ray = Some((start_pos, initial_direction));
         let mut next_ray = initial_ray;
         let mut loop_detection: HashSet<((usize, usize), Direction)> = HashSet::new();
 
         while let Some((turn_point, dir)) = next_ray {
             // find the turn point ahead or equal to us
-            let mut next_turn_point = self.find_turn_point(&turn_point, &dir);
-            if ObstructionMap::pick_column_row(&turn_point, &dir)
-                == ObstructionMap::pick_column_row(&obstacle, &dir)
-            {
-                next_turn_point = match next_turn_point {
-                    // obstacle can't be on the itself turnpoint -> mainly because it's never put there
-                    // therefore this shuold be fine
-                    Some(next_point)
-                        if self._obstacle_on_path(&obstacle, &turn_point, &next_point, &dir) =>
-                    {
-                        Some(self._obstacle_into_turnpoint(&obstacle, &dir))
-                    }
-                    None if self._obstacle_on_ray(&obstacle, &turn_point, &dir) => {
-                        Some(self._obstacle_into_turnpoint(&obstacle, &dir))
-                    }
-                    _ => None,
-                }
-            }
-
+            let next_turn_point = self.find_turn_point(&turn_point, &dir);
             // map on option -> if no turn point loop should exit on next iteration
             next_ray = next_turn_point.map(|point| (point, dir.cw()));
             if next_ray == initial_ray {
-                let mut display = GridDisplay::from_grid(self.grid);
-                display.apply_char('O', obstacle);
-                display.apply_char('S', initial_turn_point);
-                for (_pos, _dir) in loop_detection {
-                    let dir_char = match _dir {
-                        Direction::Up => 'U',
-                        Direction::Right => 'R',
-                        Direction::Down => 'D',
-                        Direction::Left => 'L',
-                    };
-                    display.apply_char(dir_char, _pos);
-                }
-                println!("{}", display.to_string());
                 return true;
             }
             if next_ray.is_some() && !loop_detection.insert(next_ray.unwrap()) {
@@ -230,8 +195,8 @@ impl<'a> ObstructionMap<'a> {
     fn give_ray_points(&self, start: (usize, usize), dir: Direction) -> Vec<(usize, usize)> {
         let end_point = match dir {
             Direction::Up => (start.0, 0),
-            Direction::Right => (self.grid.size.0, start.1),
-            Direction::Down => (start.0, self.grid.size.1),
+            Direction::Right => (self.grid.size.0 - 1, start.1),
+            Direction::Down => (start.0, self.grid.size.1 - 1),
             Direction::Left => (0, start.1),
         };
 
@@ -478,22 +443,6 @@ mod obstruction_map_tests {
             obstruct_grid.find_turn_point(&(1, 3), &Direction::Up),
             Some((1, 3))
         );
-    }
-
-    #[test]
-    fn test_is_loop() {
-        let map_string: &str = "#....
-....#
-.....
-#....
-...#.";
-
-        let char_grid = grid::Grid::<char>::new_char_grid(map_string);
-        let obstruct_grid = ObstructionMap::from_grid(&char_grid);
-
-        assert!(!obstruct_grid.is_loop((1, 2), Direction::Up));
-        assert!(!obstruct_grid.is_loop((3, 2), Direction::Right));
-        assert!(obstruct_grid.is_loop((1, 0), Direction::Up));
     }
 
     #[test]

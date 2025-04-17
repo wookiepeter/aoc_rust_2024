@@ -1,2 +1,4 @@
 input.txt
 aoc_rust_2024.code-workspace
+day-06/src/bin/main.rs
+day-06/src/bin/main2.rs
