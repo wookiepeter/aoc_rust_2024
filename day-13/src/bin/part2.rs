@@ -10,6 +10,27 @@ fn main() {
     dbg!(output);
 }
 
+/*
+BETTER SOLUTION
+while my approach of solving a system of linear equations sorta works there is still a much better solution.
+
+A machine in this game essentially represents a system of 2 equations  with 2 unknown variables
+#1: prize.0 = a.0 * a + b.0 * b
+#2: prize.1 = a.1 * a + b.1 * b
+
+Because it is a system of equations we can solve that system.
+The easiest approach do code that is probably solving by substraction
+
+This allows you to arrange the equations in such a way that you can eliminate one of the variables
+a_value = (prize.0 * b.1 - prize.1 * b.0) / (a.0 * b.1 - a.1 * b.0)
+This gives you a concrete value for a which you can than put into one of the original equations
+prize.0 = a.0 * a_value + b.0 * b
+and then solve that equation for b to get the second value
+b = (prize.0 - a.0 * a_value) / b.0
+
+Now all that is left is to check if that solution actually fits (even numbers, ...)
+
+*/
 fn process(input: &str) -> String {
     let machines = day_13::parse_machines(input);
     let mut result = 0u64;
