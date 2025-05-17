@@ -1,10 +1,6 @@
-use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
+use std::collections::{BinaryHeap, HashMap, HashSet};
 
-use aoc_util::{
-    direction::Direction,
-    grid::{self, Grid},
-    grid_display,
-};
+use aoc_util::{direction::Direction, grid::Grid, grid_display};
 use day_16::SearchState;
 
 fn main() {
@@ -31,26 +27,39 @@ fn process(input: &str) -> String {
     // Direction can't simply be removed
     // we have to keep track of direction both here and when walking backwards
 
-    println!("{:?}", path_scores);
     let mut best_path_tiles: HashSet<(usize, usize)> = HashSet::new();
+    best_path_tiles.insert(end_position);
 
     let mut queue: Vec<((usize, usize), Direction)> = Vec::new();
-    // queue.push((end_position, Direction::Right));
-    queue.push((end_position, Direction::Up));
+    // You have to select the start positions with the lowest score or both if score is equal
+    let start_down = path_scores.get(&(end_position, Direction::Up));
+    let start_right = path_scores.get(&(end_position, Direction::Right));
 
-    while let Some((position, direction)) = queue.pop() {
-        let score = *path_scores.get(&(position, direction)).unwrap();
-        println!("looking at neighbors for {:?} with score {score}", position);
-        for (neighbor_pos, dir) in filter_valid_neighbors(position, &map) {
-            if let Some(neighbor_score) = path_scores.get(&(neighbor_pos, dir.opposite())) {
-                println!(
-                    "Found neighbor at {:?} with score {neighbor_score}",
-                    neighbor_pos
-                );
-                // can't check score blankly -> have to check score in the same direction or find smallest neighbor -> do both
-                if *neighbor_score < score && !best_path_tiles.contains(&neighbor_pos) {
-                    best_path_tiles.insert(neighbor_pos);
-                    queue.push((neighbor_pos, dir));
+    if start_down.is_none() {
+        queue.push((end_position, Direction::Right));
+    } else if start_right.is_none() {
+        queue.push((end_position, Direction::Up));
+    } else {
+        match start_down.cmp(&start_right) {
+            std::cmp::Ordering::Less => queue.push((end_position, Direction::Up)),
+            std::cmp::Ordering::Equal => {
+                queue.push((end_position, Direction::Right));
+                queue.push((end_position, Direction::Up));
+            }
+            std::cmp::Ordering::Greater => queue.push((end_position, Direction::Right)),
+        }
+    }
+
+    while let Some(state) = queue.pop() {
+        let score = *path_scores.get(&state).unwrap();
+        for ((neighbor_pos, dir), score_change) in potential_prior_states(state, &map) {
+            if let Some(neighbor_score) = path_scores.get(&(neighbor_pos, dir)) {
+                // can't check score blankly -> have to check if score is correct for the specific move
+                if let Some(computed_score) = score.checked_sub(score_change) {
+                    if *neighbor_score == computed_score {
+                        best_path_tiles.insert(neighbor_pos);
+                        queue.push((neighbor_pos, dir));
+                    }
                 }
             }
         }
@@ -64,18 +73,23 @@ fn process(input: &str) -> String {
     best_path_tiles.len().to_string()
 }
 
-fn filter_valid_neighbors(
-    position: (usize, usize),
+#[allow(clippy::type_complexity)]
+fn potential_prior_states(
+    state: ((usize, usize), Direction),
     grid: &Grid<char>,
-) -> Vec<((usize, usize), Direction)> {
-    Direction::CLOCKWISE
-        .iter()
-        .filter_map(|dir| match grid.get_direct_neighbor(position, *dir) {
-            Some((_, '#')) => None,
-            Some((neighbor_pos, _)) => Some((neighbor_pos, *dir)),
-            _ => None,
-        })
-        .collect()
+) -> Vec<(((usize, usize), Direction), usize)> {
+    let (position, direction) = state;
+    let mut result = vec![
+        ((position, direction.cw()), 1000),
+        ((position, direction.ccw()), 1000),
+    ];
+    match grid.get_direct_neighbor(position, direction.opposite()) {
+        Some((previous_position, c)) if *c != '#' => {
+            result.push(((previous_position, direction), 1));
+        }
+        _ => (),
+    };
+    result
 }
 
 fn compute_path_scores(
