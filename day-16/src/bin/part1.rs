@@ -1,3 +1,4 @@
+use day_16::SearchState;
 use std::collections::{BinaryHeap, HashMap};
 
 use aoc_util::{direction::Direction, grid::Grid};
@@ -66,31 +67,6 @@ fn process(input: &str) -> String {
     }
 
     panic!("Couldn't reach end of the maze!");
-}
-
-#[derive(Debug, Hash, Clone, PartialEq, Eq)]
-struct SearchState {
-    position: (usize, usize),
-    direction: Direction,
-    score: usize,
-}
-
-impl SearchState {
-    fn without_score(&self) -> ((usize, usize), Direction) {
-        (self.position, self.direction)
-    }
-}
-
-impl PartialOrd for SearchState {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for SearchState {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.score.cmp(&other.score).reverse()
-    }
 }
 
 #[cfg(test)]
